@@ -8,20 +8,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newAlertsCmd() *cobra.Command {
+func newAlertsCmd(getClient func() api.SocketAPI) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "alerts",
 		Short: "View and manage alerts",
 	}
 
 	cmd.AddCommand(
-		newAlertsListCmd(),
-		newAlertsTriageListCmd(),
+		newAlertsListCmd(getClient),
+		newAlertsTriageListCmd(getClient),
 	)
 	return cmd
 }
 
-func newAlertsListCmd() *cobra.Command {
+func newAlertsListCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var (
 		org     string
 		perPage int
@@ -32,7 +32,7 @@ func newAlertsListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List alerts for an organization",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			q := url.Values{}
 			if perPage > 0 {
 				q.Set("per_page", fmt.Sprintf("%d", perPage))
@@ -44,7 +44,7 @@ func newAlertsListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -56,19 +56,19 @@ func newAlertsListCmd() *cobra.Command {
 	return cmd
 }
 
-func newAlertsTriageListCmd() *cobra.Command {
+func newAlertsTriageListCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org string
 
 	cmd := &cobra.Command{
 		Use:   "triage",
 		Short: "List triaged alerts",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Get(fmt.Sprintf("/orgs/%s/triage/alerts", org), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 

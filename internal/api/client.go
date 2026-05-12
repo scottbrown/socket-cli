@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/scottbrown/socket-cli/internal/config"
 )
 
 type Client struct {
@@ -17,10 +15,10 @@ type Client struct {
 	token      string
 }
 
-func NewClient(token string) *Client {
+func NewClient(baseURL, token string) *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
-		baseURL:    config.GetBaseURL(),
+		baseURL:    baseURL,
 		token:      token,
 	}
 }
@@ -92,17 +90,17 @@ func (c *Client) Put(path string, query url.Values, body io.Reader, contentType 
 	return io.ReadAll(resp.Body)
 }
 
-func PrintJSON(data []byte) error {
+func PrintJSON(w io.Writer, data []byte) error {
 	var v any
 	if err := json.Unmarshal(data, &v); err != nil {
-		fmt.Println(string(data))
+		fmt.Fprintln(w, string(data))
 		return nil
 	}
 	out, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(out))
+	fmt.Fprintln(w, string(out))
 	return nil
 }
 

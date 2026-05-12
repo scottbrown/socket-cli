@@ -8,21 +8,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newDiffScansCmd() *cobra.Command {
+func newDiffScansCmd(getClient func() api.SocketAPI) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "diffscans",
 		Short: "Manage diff scans",
 	}
 
 	cmd.AddCommand(
-		newDiffScansListCmd(),
-		newDiffScansGetCmd(),
-		newDiffScansDeleteCmd(),
+		newDiffScansListCmd(getClient),
+		newDiffScansGetCmd(getClient),
+		newDiffScansDeleteCmd(getClient),
 	)
 	return cmd
 }
 
-func newDiffScansListCmd() *cobra.Command {
+func newDiffScansListCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var (
 		org     string
 		perPage int
@@ -33,7 +33,7 @@ func newDiffScansListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List diff scans for an organization",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			q := url.Values{}
 			if perPage > 0 {
 				q.Set("per_page", fmt.Sprintf("%d", perPage))
@@ -45,7 +45,7 @@ func newDiffScansListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -57,19 +57,19 @@ func newDiffScansListCmd() *cobra.Command {
 	return cmd
 }
 
-func newDiffScansGetCmd() *cobra.Command {
+func newDiffScansGetCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org, scanID string
 
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get a diff scan by ID",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Get(fmt.Sprintf("/orgs/%s/diff-scans/%s", org, scanID), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -81,19 +81,19 @@ func newDiffScansGetCmd() *cobra.Command {
 	return cmd
 }
 
-func newDiffScansDeleteCmd() *cobra.Command {
+func newDiffScansDeleteCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org, scanID string
 
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a diff scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Delete(fmt.Sprintf("/orgs/%s/diff-scans/%s", org, scanID), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 

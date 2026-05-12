@@ -5,27 +5,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newOrgsCmd() *cobra.Command {
+func newOrgsCmd(getClient func() api.SocketAPI) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "orgs",
 		Short: "Manage organizations",
 	}
 
-	cmd.AddCommand(newOrgsListCmd())
+	cmd.AddCommand(newOrgsListCmd(getClient))
 	return cmd
 }
 
-func newOrgsListCmd() *cobra.Command {
+func newOrgsListCmd(getClient func() api.SocketAPI) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List organizations linked to your API token",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Get("/organizations", nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 }

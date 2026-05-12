@@ -13,40 +13,46 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newFullScansCmd() *cobra.Command {
+type FileOpener func(name string) (io.ReadCloser, error)
+
+func defaultFileOpener(name string) (io.ReadCloser, error) {
+	return os.Open(name)
+}
+
+func newFullScansCmd(getClient func() api.SocketAPI) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fullscans",
 		Short: "Manage full scans",
 	}
 
 	cmd.AddCommand(
-		newFullScansListCmd(),
-		newFullScansGetCmd(),
-		newFullScansCreateCmd(),
-		newFullScansDeleteCmd(),
-		newFullScansMetadataCmd(),
+		newFullScansListCmd(getClient),
+		newFullScansGetCmd(getClient),
+		newFullScansCreateCmd(getClient, defaultFileOpener),
+		newFullScansDeleteCmd(getClient),
+		newFullScansMetadataCmd(getClient),
 	)
 	return cmd
 }
 
-func newFullScansListCmd() *cobra.Command {
+func newFullScansListCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var (
-		org       string
-		sort      string
-		dir       string
-		perPage   int
-		page      int
-		repo      string
-		branch    string
-		from      string
-		scanType  string
+		org      string
+		sort     string
+		dir      string
+		perPage  int
+		page     int
+		repo     string
+		branch   string
+		from     string
+		scanType string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List full scans for an organization",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			q := url.Values{}
 			if sort != "" {
 				q.Set("sort", sort)
@@ -76,7 +82,7 @@ func newFullScansListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -94,19 +100,19 @@ func newFullScansListCmd() *cobra.Command {
 	return cmd
 }
 
-func newFullScansGetCmd() *cobra.Command {
+func newFullScansGetCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org, scanID string
 
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get a full scan by ID",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Get(fmt.Sprintf("/orgs/%s/full-scans/%s", org, scanID), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -118,7 +124,7 @@ func newFullScansGetCmd() *cobra.Command {
 	return cmd
 }
 
-func newFullScansCreateCmd() *cobra.Command {
+func newFullScansCreateCmd(getClient func() api.SocketAPI, openFile FileOpener) *cobra.Command {
 	var (
 		org           string
 		repo          string
@@ -133,7 +139,7 @@ func newFullScansCreateCmd() *cobra.Command {
 		Use:   "create",
 		Short: "Create a new full scan by uploading manifest files",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 
 			q := url.Values{}
 			q.Set("repo", repo)
@@ -154,7 +160,7 @@ func newFullScansCreateCmd() *cobra.Command {
 			writer := multipart.NewWriter(&body)
 
 			for _, f := range files {
-				file, err := os.Open(f)
+				file, err := openFile(f)
 				if err != nil {
 					return fmt.Errorf("opening %s: %w", f, err)
 				}
@@ -178,7 +184,7 @@ func newFullScansCreateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -196,19 +202,19 @@ func newFullScansCreateCmd() *cobra.Command {
 	return cmd
 }
 
-func newFullScansDeleteCmd() *cobra.Command {
+func newFullScansDeleteCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org, scanID string
 
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a full scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Delete(fmt.Sprintf("/orgs/%s/full-scans/%s", org, scanID), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -220,19 +226,19 @@ func newFullScansDeleteCmd() *cobra.Command {
 	return cmd
 }
 
-func newFullScansMetadataCmd() *cobra.Command {
+func newFullScansMetadataCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org, scanID string
 
 	cmd := &cobra.Command{
 		Use:   "metadata",
 		Short: "Get metadata for a full scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Get(fmt.Sprintf("/orgs/%s/full-scans/%s/metadata", org, scanID), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 

@@ -9,17 +9,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newPackagesCmd() *cobra.Command {
+func newPackagesCmd(getClient func() api.SocketAPI) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "packages",
 		Short: "Query package information",
 	}
 
-	cmd.AddCommand(newPackagesLookupCmd())
+	cmd.AddCommand(newPackagesLookupCmd(getClient))
 	return cmd
 }
 
-func newPackagesLookupCmd() *cobra.Command {
+func newPackagesLookupCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org string
 
 	cmd := &cobra.Command{
@@ -28,7 +28,7 @@ func newPackagesLookupCmd() *cobra.Command {
 		Long:  "Look up package information using Package URLs. Example purls: pkg:npm/express@4.18.2, pkg:pypi/requests@2.31.0",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 
 			body := map[string][]string{"purls": args}
 			b, err := json.Marshal(body)
@@ -45,7 +45,7 @@ func newPackagesLookupCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 

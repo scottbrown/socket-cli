@@ -8,21 +8,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newReposCmd() *cobra.Command {
+func newReposCmd(getClient func() api.SocketAPI) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "repos",
 		Short: "Manage repositories",
 	}
 
 	cmd.AddCommand(
-		newReposListCmd(),
-		newReposGetCmd(),
-		newReposDeleteCmd(),
+		newReposListCmd(getClient),
+		newReposGetCmd(getClient),
+		newReposDeleteCmd(getClient),
 	)
 	return cmd
 }
 
-func newReposListCmd() *cobra.Command {
+func newReposListCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var (
 		org     string
 		sort    string
@@ -35,7 +35,7 @@ func newReposListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List repositories for an organization",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			q := url.Values{}
 			if sort != "" {
 				q.Set("sort", sort)
@@ -53,7 +53,7 @@ func newReposListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -67,19 +67,19 @@ func newReposListCmd() *cobra.Command {
 	return cmd
 }
 
-func newReposGetCmd() *cobra.Command {
+func newReposGetCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org, repo string
 
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get repository details",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Get(fmt.Sprintf("/orgs/%s/repos/%s", org, repo), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 
@@ -91,19 +91,19 @@ func newReposGetCmd() *cobra.Command {
 	return cmd
 }
 
-func newReposDeleteCmd() *cobra.Command {
+func newReposDeleteCmd(getClient func() api.SocketAPI) *cobra.Command {
 	var org, repo string
 
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a repository",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Delete(fmt.Sprintf("/orgs/%s/repos/%s", org, repo), nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 

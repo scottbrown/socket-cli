@@ -1,44 +1,46 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/scottbrown/socket-cli/internal/api"
 	"github.com/scottbrown/socket-cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
-var client *api.Client
-
-func newClient() *api.Client {
-	if client != nil {
-		return client
-	}
-	token, err := config.GetAPIToken()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	client = api.NewClient(token)
-	return client
+func NewRootCmd() *cobra.Command {
+	return newRootCmd(nil)
 }
 
-func NewRootCmd() *cobra.Command {
+func newRootCmd(injectedClient api.SocketAPI) *cobra.Command {
+	var client api.SocketAPI
+
 	root := &cobra.Command{
 		Use:   "socket",
 		Short: "CLI for the Socket.dev API",
 		Long:  "A command-line interface for interacting with the Socket.dev supply chain security platform.",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if injectedClient != nil {
+				client = injectedClient
+				return nil
+			}
+			token, err := config.GetAPIToken()
+			if err != nil {
+				return err
+			}
+			client = api.NewClient(config.GetBaseURL(), token)
+			return nil
+		},
 	}
 
+	getClient := func() api.SocketAPI { return client }
+
 	root.AddCommand(
-		newOrgsCmd(),
-		newReposCmd(),
-		newFullScansCmd(),
-		newDiffScansCmd(),
-		newAlertsCmd(),
-		newQuotaCmd(),
-		newPackagesCmd(),
+		newOrgsCmd(getClient),
+		newReposCmd(getClient),
+		newFullScansCmd(getClient),
+		newDiffScansCmd(getClient),
+		newAlertsCmd(getClient),
+		newQuotaCmd(getClient),
+		newPackagesCmd(getClient),
 	)
 
 	return root

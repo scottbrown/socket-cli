@@ -5,17 +5,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newQuotaCmd() *cobra.Command {
+func newQuotaCmd(getClient func() api.SocketAPI) *cobra.Command {
 	return &cobra.Command{
 		Use:   "quota",
 		Short: "Show API quota information",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := newClient()
+			c := getClient()
 			data, err := c.Get("/quota", nil)
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(data)
+			return api.PrintJSON(cmd.OutOrStdout(), data)
 		},
 	}
 }
