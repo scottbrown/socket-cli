@@ -39,6 +39,7 @@ func newRootCmd(injectedClient api.SocketAPI) *cobra.Command {
 		newFullScansCmd(getClient),
 		newDiffScansCmd(getClient),
 		newAlertsCmd(getClient),
+		newFixesCmd(getClient),
 		newQuotaCmd(getClient),
 		newPackagesCmd(getClient),
 	)
