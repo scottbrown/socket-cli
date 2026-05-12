@@ -2,7 +2,7 @@
 
 A Go CLI for the [Socket.dev](https://socket.dev) supply chain security platform.
 
-Unlike the official Socket CLI (written in TypeScript with a large dependency tree), this is a single statically-linked binary with zero runtime dependencies.
+Unlike the official Socket CLI (written in TypeScript requiring Node.js and hundreds of npm packages at runtime), this compiles to a single statically-linked binary that needs nothing else on the target system to run.
 
 ## Installation
 
