@@ -31,5 +31,10 @@ go.work.sum
 # .idea/
 # .vscode/
 
+# Task output directories
+.build/
+.test/
+.task/
+
 # Built binary
 /socket

@@ -1,0 +1,43 @@
+version: "3"
+
+vars:
+  BINARY: socket
+  BUILD_DIR: .build
+  TEST_DIR: .test
+
+tasks:
+  build:
+    desc: Compile the binary
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - CGO_ENABLED=0 go build -ldflags="-s -w" -o {{.BUILD_DIR}}/{{.BINARY}} ./cmd/socket
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.BUILD_DIR}}/{{.BINARY}}"
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - mkdir -p {{.TEST_DIR}}
+      - go test -v ./... 2>&1 | tee {{.TEST_DIR}}/test.out
+
+  coverage:
+    desc: Generate test coverage report
+    cmds:
+      - mkdir -p {{.TEST_DIR}}
+      - go test -coverprofile={{.TEST_DIR}}/coverage.out ./...
+      - go tool cover -html={{.TEST_DIR}}/coverage.out -o {{.TEST_DIR}}/coverage.html
+      - go tool cover -func={{.TEST_DIR}}/coverage.out
+
+  vet:
+    desc: Vet the code
+    cmds:
+      - go vet ./...
+
+  clean:
+    desc: Clean derived artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}} {{.TEST_DIR}}
