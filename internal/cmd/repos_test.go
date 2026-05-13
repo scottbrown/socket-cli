@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 	"testing"
@@ -98,5 +100,125 @@ func TestReposDeleteCmd_APIError(t *testing.T) {
 	_, err := executeCommand(t, mock, "repos", "delete", "--org", "org1", "--repo", "repo1")
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestReposCreateCmd_Success(t *testing.T) {
+	mock := &mockClient{
+		postFunc: func(path string, query url.Values, body io.Reader, contentType string) ([]byte, error) {
+			if path != "/orgs/org1/repos" {
+				t.Errorf("path = %q, want /orgs/org1/repos", path)
+			}
+			if contentType != "application/json" {
+				t.Errorf("contentType = %q, want application/json", contentType)
+			}
+			var payload map[string]string
+			if err := json.NewDecoder(body).Decode(&payload); err != nil {
+				t.Fatalf("failed to decode body: %v", err)
+			}
+			if payload["name"] != "new-repo" {
+				t.Errorf("name = %q, want new-repo", payload["name"])
+			}
+			if payload["description"] != "A test repo" {
+				t.Errorf("description = %q, want 'A test repo'", payload["description"])
+			}
+			return []byte(`{"name":"new-repo"}`), nil
+		},
+	}
+
+	out, err := executeCommand(t, mock, "repos", "create", "--org", "org1", "--name", "new-repo", "--description", "A test repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "new-repo") {
+		t.Errorf("output = %q, want to contain 'new-repo'", out)
+	}
+}
+
+func TestReposCreateCmd_MissingFlags(t *testing.T) {
+	mock := &mockClient{}
+	_, err := executeCommand(t, mock, "repos", "create", "--org", "org1")
+	if err == nil {
+		t.Fatal("expected error for missing --name flag")
+	}
+
+	_, err = executeCommand(t, mock, "repos", "create", "--name", "x")
+	if err == nil {
+		t.Fatal("expected error for missing --org flag")
+	}
+}
+
+func TestReposCreateCmd_APIError(t *testing.T) {
+	mock := &mockClient{
+		postFunc: func(path string, query url.Values, body io.Reader, contentType string) ([]byte, error) {
+			return nil, fmt.Errorf("API error 409: conflict")
+		},
+	}
+
+	_, err := executeCommand(t, mock, "repos", "create", "--org", "org1", "--name", "dup")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestReposUpdateCmd_Success(t *testing.T) {
+	mock := &mockClient{
+		postFunc: func(path string, query url.Values, body io.Reader, contentType string) ([]byte, error) {
+			if path != "/orgs/org1/repos/repo1" {
+				t.Errorf("path = %q, want /orgs/org1/repos/repo1", path)
+			}
+			var payload map[string]interface{}
+			if err := json.NewDecoder(body).Decode(&payload); err != nil {
+				t.Fatalf("failed to decode body: %v", err)
+			}
+			if payload["description"] != "updated desc" {
+				t.Errorf("description = %q, want 'updated desc'", payload["description"])
+			}
+			if payload["archived"] != true {
+				t.Errorf("archived = %v, want true", payload["archived"])
+			}
+			return []byte(`{"name":"repo1","archived":true}`), nil
+		},
+	}
+
+	out, err := executeCommand(t, mock, "repos", "update", "--org", "org1", "--repo", "repo1",
+		"--description", "updated desc", "--archived")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "repo1") {
+		t.Errorf("output = %q, want to contain 'repo1'", out)
+	}
+}
+
+func TestReposUpdateCmd_MissingFlags(t *testing.T) {
+	mock := &mockClient{}
+	_, err := executeCommand(t, mock, "repos", "update", "--org", "org1")
+	if err == nil {
+		t.Fatal("expected error for missing --repo flag")
+	}
+}
+
+func TestReposUpdateCmd_OnlyChangedFields(t *testing.T) {
+	mock := &mockClient{
+		postFunc: func(path string, query url.Values, body io.Reader, contentType string) ([]byte, error) {
+			var payload map[string]interface{}
+			if err := json.NewDecoder(body).Decode(&payload); err != nil {
+				t.Fatalf("failed to decode body: %v", err)
+			}
+			if _, ok := payload["name"]; ok {
+				t.Error("name should not be in body when not passed as flag")
+			}
+			if payload["visibility"] != "private" {
+				t.Errorf("visibility = %q, want private", payload["visibility"])
+			}
+			return []byte(`{}`), nil
+		},
+	}
+
+	_, err := executeCommand(t, mock, "repos", "update", "--org", "org1", "--repo", "repo1",
+		"--visibility", "private")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

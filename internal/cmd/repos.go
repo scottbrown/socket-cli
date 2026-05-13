@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/url"
 
@@ -17,6 +19,8 @@ func newReposCmd(getClient func() api.SocketAPI) *cobra.Command {
 	cmd.AddCommand(
 		newReposListCmd(getClient),
 		newReposGetCmd(getClient),
+		newReposCreateCmd(getClient),
+		newReposUpdateCmd(getClient),
 		newReposDeleteCmd(getClient),
 	)
 	return cmd
@@ -85,6 +89,120 @@ func newReposGetCmd(getClient func() api.SocketAPI) *cobra.Command {
 
 	cmd.Flags().StringVar(&org, "org", "", "Organization slug (required)")
 	cmd.Flags().StringVar(&repo, "repo", "", "Repository slug (required)")
+	cmd.MarkFlagRequired("org")
+	cmd.MarkFlagRequired("repo")
+
+	return cmd
+}
+
+func newReposCreateCmd(getClient func() api.SocketAPI) *cobra.Command {
+	var (
+		org           string
+		name          string
+		description   string
+		homepage      string
+		visibility    string
+		defaultBranch string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a repository",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c := getClient()
+			body := map[string]string{"name": name}
+			if description != "" {
+				body["description"] = description
+			}
+			if homepage != "" {
+				body["homepage"] = homepage
+			}
+			if visibility != "" {
+				body["visibility"] = visibility
+			}
+			if defaultBranch != "" {
+				body["default_branch"] = defaultBranch
+			}
+			b, err := json.Marshal(body)
+			if err != nil {
+				return err
+			}
+			data, err := c.Post(fmt.Sprintf("/orgs/%s/repos", org), nil, bytes.NewReader(b), "application/json")
+			if err != nil {
+				return err
+			}
+			return api.PrintJSON(cmd.OutOrStdout(), data)
+		},
+	}
+
+	cmd.Flags().StringVar(&org, "org", "", "Organization slug (required)")
+	cmd.Flags().StringVar(&name, "name", "", "Repository name (required)")
+	cmd.Flags().StringVar(&description, "description", "", "Repository description")
+	cmd.Flags().StringVar(&homepage, "homepage", "", "Repository homepage URL")
+	cmd.Flags().StringVar(&visibility, "visibility", "", "Repository visibility")
+	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "Default branch name")
+	cmd.MarkFlagRequired("org")
+	cmd.MarkFlagRequired("name")
+
+	return cmd
+}
+
+func newReposUpdateCmd(getClient func() api.SocketAPI) *cobra.Command {
+	var (
+		org           string
+		repo          string
+		name          string
+		description   string
+		homepage      string
+		visibility    string
+		defaultBranch string
+		archived      bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update a repository",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c := getClient()
+			body := map[string]interface{}{}
+			if cmd.Flags().Changed("name") {
+				body["name"] = name
+			}
+			if cmd.Flags().Changed("description") {
+				body["description"] = description
+			}
+			if cmd.Flags().Changed("homepage") {
+				body["homepage"] = homepage
+			}
+			if cmd.Flags().Changed("visibility") {
+				body["visibility"] = visibility
+			}
+			if cmd.Flags().Changed("default-branch") {
+				body["default_branch"] = defaultBranch
+			}
+			if cmd.Flags().Changed("archived") {
+				body["archived"] = archived
+			}
+			b, err := json.Marshal(body)
+			if err != nil {
+				return err
+			}
+			data, err := c.Post(fmt.Sprintf("/orgs/%s/repos/%s", org, repo), nil, bytes.NewReader(b), "application/json")
+			if err != nil {
+				return err
+			}
+			return api.PrintJSON(cmd.OutOrStdout(), data)
+		},
+	}
+
+	cmd.Flags().StringVar(&org, "org", "", "Organization slug (required)")
+	cmd.Flags().StringVar(&repo, "repo", "", "Repository slug (required)")
+	cmd.Flags().StringVar(&name, "name", "", "New repository name")
+	cmd.Flags().StringVar(&description, "description", "", "Repository description")
+	cmd.Flags().StringVar(&homepage, "homepage", "", "Repository homepage URL")
+	cmd.Flags().StringVar(&visibility, "visibility", "", "Repository visibility")
+	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "Default branch name")
+	cmd.Flags().BoolVar(&archived, "archived", false, "Archive the repository")
 	cmd.MarkFlagRequired("org")
 	cmd.MarkFlagRequired("repo")
 

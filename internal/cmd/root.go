@@ -42,6 +42,8 @@ func newRootCmd(injectedClient api.SocketAPI) *cobra.Command {
 		newFixesCmd(getClient),
 		newQuotaCmd(getClient),
 		newPackagesCmd(getClient),
+		newThreatFeedCmd(getClient),
+		newAuditLogCmd(getClient),
 	)
 
 	return root
