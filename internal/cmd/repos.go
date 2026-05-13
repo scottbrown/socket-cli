@@ -57,7 +57,7 @@ func newReposListCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -83,7 +83,7 @@ func newReposGetCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -131,7 +131,7 @@ func newReposCreateCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -191,7 +191,7 @@ func newReposUpdateCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -221,7 +221,7 @@ func newReposDeleteCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 

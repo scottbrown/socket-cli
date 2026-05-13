@@ -162,6 +162,46 @@ func TestFullScansCreateCmd_Success(t *testing.T) {
 	}
 }
 
+func TestFullScansReportCmd_Success(t *testing.T) {
+	mock := &mockClient{
+		getFunc: func(path string, query url.Values) ([]byte, error) {
+			if path != "/orgs/org1/full-scans/scan-1/stream" {
+				t.Errorf("path = %q, want /orgs/org1/full-scans/scan-1/stream", path)
+			}
+			return []byte(`{"policy_result":"pass","alerts":[]}`), nil
+		},
+	}
+
+	out, err := executeCommand(t, mock, "fullscans", "report", "--org", "org1", "--id", "scan-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "policy_result") {
+		t.Errorf("output = %q, want to contain 'policy_result'", out)
+	}
+}
+
+func TestFullScansReportCmd_MissingFlags(t *testing.T) {
+	mock := &mockClient{}
+	_, err := executeCommand(t, mock, "fullscans", "report", "--org", "org1")
+	if err == nil {
+		t.Fatal("expected error for missing --id flag")
+	}
+}
+
+func TestFullScansReportCmd_APIError(t *testing.T) {
+	mock := &mockClient{
+		getFunc: func(path string, query url.Values) ([]byte, error) {
+			return nil, fmt.Errorf("API error 404: scan not found")
+		},
+	}
+
+	_, err := executeCommand(t, mock, "fullscans", "report", "--org", "org1", "--id", "bad")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestFullScansCreateCmd_FileOpenError(t *testing.T) {
 	mock := &mockClient{}
 

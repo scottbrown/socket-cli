@@ -31,6 +31,7 @@ func newFullScansCmd(getClient func() api.SocketAPI) *cobra.Command {
 		newFullScansCreateCmd(getClient, defaultFileOpener),
 		newFullScansDeleteCmd(getClient),
 		newFullScansMetadataCmd(getClient),
+		newFullScansReportCmd(getClient),
 	)
 	return cmd
 }
@@ -82,7 +83,7 @@ func newFullScansListCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -112,7 +113,7 @@ func newFullScansGetCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -184,7 +185,7 @@ func newFullScansCreateCmd(getClient func() api.SocketAPI, openFile FileOpener) 
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -214,7 +215,7 @@ func newFullScansDeleteCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
@@ -238,7 +239,32 @@ func newFullScansMetadataCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
+		},
+	}
+
+	cmd.Flags().StringVar(&org, "org", "", "Organization slug (required)")
+	cmd.Flags().StringVar(&scanID, "id", "", "Full scan ID (required)")
+	cmd.MarkFlagRequired("org")
+	cmd.MarkFlagRequired("id")
+
+	return cmd
+}
+
+func newFullScansReportCmd(getClient func() api.SocketAPI) *cobra.Command {
+	var org, scanID string
+
+	cmd := &cobra.Command{
+		Use:   "report",
+		Short: "Get the policy report for a full scan",
+		Long:  "Retrieve the policy evaluation results for a scan, showing which packages pass or fail organization policies.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c := getClient()
+			data, err := c.Get(fmt.Sprintf("/orgs/%s/full-scans/%s/stream", org, scanID), nil)
+			if err != nil {
+				return err
+			}
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 

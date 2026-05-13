@@ -104,3 +104,10 @@ func PrintJSON(w io.Writer, data []byte) error {
 	return nil
 }
 
+func PrintOutput(w io.Writer, data []byte, format string) error {
+	if format == "markdown" || format == "md" {
+		return PrintMarkdown(w, data)
+	}
+	return PrintJSON(w, data)
+}
+

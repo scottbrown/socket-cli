@@ -31,6 +31,8 @@ func newRootCmd(injectedClient api.SocketAPI) *cobra.Command {
 		},
 	}
 
+	root.PersistentFlags().String("format", "json", "Output format: json or markdown")
+
 	getClient := func() api.SocketAPI { return client }
 
 	root.AddCommand(
@@ -44,7 +46,13 @@ func newRootCmd(injectedClient api.SocketAPI) *cobra.Command {
 		newPackagesCmd(getClient),
 		newThreatFeedCmd(getClient),
 		newAuditLogCmd(getClient),
+		newAnalyticsCmd(getClient),
 	)
 
 	return root
+}
+
+func getFormat(cmd *cobra.Command) string {
+	f, _ := cmd.Flags().GetString("format")
+	return f
 }

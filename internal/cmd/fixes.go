@@ -63,7 +63,7 @@ Use --vuln-ids "*" to get fixes for all detected vulnerabilities.`,
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 

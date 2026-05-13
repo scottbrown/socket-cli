@@ -49,7 +49,7 @@ func newAuditLogListCmd(getClient func() api.SocketAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return api.PrintJSON(cmd.OutOrStdout(), data)
+			return api.PrintOutput(cmd.OutOrStdout(), data, getFormat(cmd))
 		},
 	}
 
