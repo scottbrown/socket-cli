@@ -2,15 +2,23 @@ version: "3"
 
 vars:
   BINARY: socket
+  PKG_NAME: github.com/scottbrown/socket-cli/cmd/socket
   BUILD_DIR: .build
+  DIST_DIR: .dist
   TEST_DIR: .test
+
+  GIT_VERSION:
+    sh: git tag --points-at HEAD | head -1 | grep . || git rev-parse --abbrev-ref HEAD
+  GIT_COMMIT:
+    sh: git rev-parse --short HEAD
+  LDFLAGS: "-s -w -X github.com/scottbrown/socket-cli.VERSION={{.GIT_VERSION}} -X github.com/scottbrown/socket-cli.COMMIT={{.GIT_COMMIT}}"
 
 tasks:
   build:
     desc: Compile the binary
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - CGO_ENABLED=0 go build -ldflags="-s -w" -o {{.BUILD_DIR}}/{{.BINARY}} ./cmd/socket
+      - CGO_ENABLED=0 go build -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/{{.BINARY}} {{.PKG_NAME}}
     sources:
       - "**/*.go"
       - go.mod
@@ -40,4 +48,75 @@ tasks:
   clean:
     desc: Clean derived artifacts
     cmds:
-      - rm -rf {{.BUILD_DIR}} {{.TEST_DIR}}
+      - rm -rf {{.BUILD_DIR}} {{.DIST_DIR}} {{.TEST_DIR}}
+
+  release:
+    desc: Create release artifacts
+    deps:
+      - task: build-deps
+        silent: true
+      - task: release-all
+    requires:
+      vars:
+        - VERSION
+
+  build-deps:
+    internal: true
+    cmds:
+      - mkdir -p {{.DIST_DIR}}
+
+  build-all:
+    desc: Build all platform artifacts
+    deps: [build-linux, build-windows, build-darwin]
+
+  build-linux:
+    desc: Build Linux artifacts
+    cmds:
+      - for: [amd64, arm64]
+        cmd: GOOS=linux GOARCH={{.ITEM}} CGO_ENABLED=0 go build -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/linux-{{.ITEM}}/{{.BINARY}} {{.PKG_NAME}}
+
+  build-windows:
+    desc: Build Windows artifacts
+    cmds:
+      - for: [amd64, arm64]
+        cmd: GOOS=windows GOARCH={{.ITEM}} CGO_ENABLED=0 go build -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/windows-{{.ITEM}}/{{.BINARY}}.exe {{.PKG_NAME}}
+
+  build-darwin:
+    desc: Build macOS artifacts
+    cmds:
+      - for: [amd64, arm64]
+        cmd: GOOS=darwin GOARCH={{.ITEM}} CGO_ENABLED=0 go build -ldflags "{{.LDFLAGS}}" -o {{.BUILD_DIR}}/darwin-{{.ITEM}}/{{.BINARY}} {{.PKG_NAME}}
+
+  release-all:
+    desc: Create all release tarballs
+    deps: [release-linux, release-windows, release-darwin]
+
+  release-linux:
+    desc: Create Linux release tarballs
+    deps: [build-linux]
+    cmds:
+      - for: [amd64, arm64]
+        cmd: tar cfz {{.DIST_DIR}}/{{.BINARY}}_{{.VERSION}}_linux_{{.ITEM}}.tar.gz -C {{.BUILD_DIR}}/linux-{{.ITEM}} .
+    requires:
+      vars:
+        - VERSION
+
+  release-windows:
+    desc: Create Windows release tarballs
+    deps: [build-windows]
+    cmds:
+      - for: [amd64, arm64]
+        cmd: tar cfz {{.DIST_DIR}}/{{.BINARY}}_{{.VERSION}}_windows_{{.ITEM}}.tar.gz -C {{.BUILD_DIR}}/windows-{{.ITEM}} .
+    requires:
+      vars:
+        - VERSION
+
+  release-darwin:
+    desc: Create macOS release tarballs
+    deps: [build-darwin]
+    cmds:
+      - for: [amd64, arm64]
+        cmd: tar cfz {{.DIST_DIR}}/{{.BINARY}}_{{.VERSION}}_darwin_{{.ITEM}}.tar.gz -C {{.BUILD_DIR}}/darwin-{{.ITEM}} .
+    requires:
+      vars:
+        - VERSION
