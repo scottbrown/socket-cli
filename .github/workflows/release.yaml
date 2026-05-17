@@ -1,16 +1,30 @@
 ---
+# macOS signed + notarized release workflow.
+#
+# REQUIRES 7 repo secrets (see the macos-signed-release skill):
+#   MACOS_CERTIFICATE          base64 of a .p12 holding BOTH Developer ID certs
+#   MACOS_CERTIFICATE_PASSWORD password for that .p12
+#   MACOS_APP_CERT_IDENTITY    "Developer ID Application: NAME (TEAMID)"
+#   MACOS_CERTIFICATE_IDENTITY "Developer ID Installer: NAME (TEAMID)"
+#   MACOS_NOTARY_KEY           base64 of the App Store Connect API .p8 key
+#   MACOS_NOTARY_KEY_ID        the API key ID
+#   MACOS_NOTARY_ISSUER_ID     the API key issuer ID
 name: Release
 on:
   push:
     tags:
       - 'v*'
+env:
+  BINARY_NAME: socket
+  BUNDLE_ID: com.scottbrown.socket
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
+  # Linux + Windows tarballs + SBOM. Creates the release as a DRAFT so the
+  # macos-pkg job can still add assets (published releases are immutable).
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout Source
         uses: actions/checkout@v6
@@ -22,8 +36,10 @@ jobs:
         uses: arduino/setup-task@v2
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
-      - name: Compile all versions
-        run: task release VERSION=${GITHUB_REF_NAME}
+      - name: Compile linux and windows versions
+        run: |
+          mkdir -p .dist
+          task release-linux release-windows VERSION=${GITHUB_REF_NAME}
       - name: Generate SBOM
         uses: CycloneDX/gh-gomod-generate-sbom@v2
         with:
@@ -32,8 +48,149 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           files: |
             bom.json
             .dist/*.tar.gz
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Universal macOS binary, signed + notarized .pkg, signed per-arch tarballs.
+  macos-pkg:
+    needs: build
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Build macOS binaries
+        run: task build-darwin
+      - name: Create universal binary
+        run: |
+          mkdir -p .build/darwin-universal
+          lipo -create \
+            -output .build/darwin-universal/$BINARY_NAME \
+            .build/darwin-amd64/$BINARY_NAME \
+            .build/darwin-arm64/$BINARY_NAME
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          echo "$MACOS_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+      - name: Sign macOS binaries
+        env:
+          MACOS_APP_CERT_IDENTITY: ${{ secrets.MACOS_APP_CERT_IDENTITY }}
+        run: |
+          for bin in \
+            .build/darwin-universal/$BINARY_NAME \
+            .build/darwin-amd64/$BINARY_NAME \
+            .build/darwin-arm64/$BINARY_NAME; do
+            codesign \
+              --sign "$MACOS_APP_CERT_IDENTITY" \
+              --options runtime \
+              --timestamp \
+              --force \
+              "$bin"
+          done
+      - name: Build and sign macOS package
+        env:
+          MACOS_CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          mkdir -p .dist
+          pkgbuild \
+            --root .build/darwin-universal \
+            --identifier "$BUNDLE_ID" \
+            --version "$VERSION" \
+            --install-location /usr/local/bin \
+            $RUNNER_TEMP/unsigned.pkg
+          productsign \
+            --sign "$MACOS_CERTIFICATE_IDENTITY" \
+            $RUNNER_TEMP/unsigned.pkg \
+            .dist/${BINARY_NAME}_${VERSION}_darwin.pkg
+      - name: Create signed macOS tarballs
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          tar cfz .dist/${BINARY_NAME}_${VERSION}_darwin_amd64.tar.gz -C .build/darwin-amd64 $BINARY_NAME
+          tar cfz .dist/${BINARY_NAME}_${VERSION}_darwin_arm64.tar.gz -C .build/darwin-arm64 $BINARY_NAME
+      - name: Notarize macOS artifacts
+        env:
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          KEY_PATH=$RUNNER_TEMP/notary_key.p8
+          echo "$MACOS_NOTARY_KEY" | base64 --decode > "$KEY_PATH"
+          mkdir "$RUNNER_TEMP/notarize"
+          cp .dist/${BINARY_NAME}_${VERSION}_darwin.pkg "$RUNNER_TEMP/notarize/"
+          cp .build/darwin-amd64/$BINARY_NAME "$RUNNER_TEMP/notarize/${BINARY_NAME}-darwin-amd64"
+          cp .build/darwin-arm64/$BINARY_NAME "$RUNNER_TEMP/notarize/${BINARY_NAME}-darwin-arm64"
+          ditto -c -k "$RUNNER_TEMP/notarize" "$RUNNER_TEMP/notarize.zip"
+          SUBMISSION_ID=$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$KEY_PATH" \
+            --key-id "$MACOS_NOTARY_KEY_ID" \
+            --issuer "$MACOS_NOTARY_ISSUER_ID" \
+            --output-format json | jq -r '.id')
+          echo "Notarization submission ID: $SUBMISSION_ID"
+          if ! xcrun notarytool wait "$SUBMISSION_ID" \
+            --key "$KEY_PATH" \
+            --key-id "$MACOS_NOTARY_KEY_ID" \
+            --issuer "$MACOS_NOTARY_ISSUER_ID" \
+            --timeout 30m; then
+            echo "::error::Notarization failed or timed out; fetching status and log:"
+            xcrun notarytool info "$SUBMISSION_ID" \
+              --key "$KEY_PATH" \
+              --key-id "$MACOS_NOTARY_KEY_ID" \
+              --issuer "$MACOS_NOTARY_ISSUER_ID" || true
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --key "$KEY_PATH" \
+              --key-id "$MACOS_NOTARY_KEY_ID" \
+              --issuer "$MACOS_NOTARY_ISSUER_ID" || true
+            exit 1
+          fi
+          xcrun stapler staple .dist/${BINARY_NAME}_${VERSION}_darwin.pkg
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/signing.keychain-db
+      - name: Upload macOS artifacts to Release
+        uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          files: |
+            .dist/*.pkg
+            .dist/*_darwin_*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Flips the release from draft to published once every asset is attached.
+  publish:
+    needs: [build, macos-pkg]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish Release
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
