@@ -6,6 +6,10 @@ Unlike the official Socket CLI (written in TypeScript requiring Node.js and hund
 
 ## Installation
 
+Download a prebuilt binary from the [Releases](https://github.com/scottbrown/socket-cli/releases) page. macOS users should prefer the signed and notarized `socket_<version>_darwin.pkg` installer, which Gatekeeper accepts without warnings and installs `socket` to `/usr/local/bin`. Per-architecture `.tar.gz` archives are available for Linux, Windows, and macOS.
+
+Or install with Go:
+
 ```bash
 go install github.com/scottbrown/socket-cli/cmd/socket@latest
 ```
