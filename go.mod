@@ -1,6 +1,6 @@
 module github.com/scottbrown/socket-cli
 
-go 1.26.1
+go 1.27.4
 
 require github.com/spf13/cobra v1.10.2
 
